@@ -1,62 +1,259 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
-    <title>3 en Raya P2P</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TicTacP2P - Multijugador Real</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        #board { display: grid; grid-template-columns: repeat(3, 100px); gap: 5px; }
-        .cell { width: 100px; height: 100px; border: 1px solid #000; font-size: 40px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+        .cell {
+            transition: all 0.2s;
+            aspect-ratio: 1 / 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3rem;
+            font-weight: bold;
+            cursor: pointer;
+            background: #f3f4f6;
+        }
+        .cell:hover:not(.occupied) {
+            background: #e5e7eb;
+        }
+        .cell.occupied { cursor: default; }
+        .x-player { color: #ef4444; }
+        .o-player { color: #3b82f6; }
+        #status-dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+        .dot-online { background-color: #10b981; box-shadow: 0 0 8px #10b981; }
+        .dot-offline { background-color: #ef4444; }
     </style>
 </head>
-<body>
-    <h1>Ceros y Raya P2P</h1>
-    
-    <div id="setup">
-        <p>Tu ID para que te busquen: <b id="my-id">...</b></p>
-        <input type="text" id="peer-id" placeholder="ID del oponente">
-        <button onclick="connectToPeer()">Conectar y Jugar</button>
-    </div>
+<body class="bg-slate-900 text-white min-h-screen flex items-center justify-center p-4 font-sans">
 
-    <div id="board" style="display:none;">
-        <div class="cell" onclick="makeMove(0)"></div>
-        <div class="cell" onclick="makeMove(1)"></div>
+    <div class="max-w-md w-full bg-slate-800 rounded-2xl shadow-2xl overflow-hidden border border-slate-700">
+        <!-- Header -->
+        <div class="p-6 border-b border-slate-700 text-center">
+            <h1 class="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
+                TicTac P2P
+            </h1>
+            <p class="text-slate-400 text-sm mt-1">Juego Online sin Base de Datos</p>
         </div>
 
+        <!-- Pantalla de Inicio -->
+        <div id="setup-screen" class="p-6 space-y-6">
+            <div class="bg-slate-900/50 p-4 rounded-lg border border-slate-700">
+                <label class="text-xs uppercase tracking-wider text-slate-500 font-bold">Tu Identificador (Pásalo a un amigo)</label>
+                <div class="flex items-center gap-2 mt-1">
+                    <span id="status-dot" class="dot-offline"></span>
+                    <span id="my-id-display" class="font-mono text-blue-400">Generando ID...</span>
+                    <button onclick="copyMyId()" class="ml-auto text-xs bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded">Copiar</button>
+                </div>
+            </div>
+
+            <div class="space-y-3">
+                <label class="text-xs uppercase tracking-wider text-slate-500 font-bold">Conectar con un oponente</label>
+                <input type="text" id="peer-id-input" placeholder="Pega el ID de tu amigo aquí" 
+                    class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all">
+                <button onclick="connectToPeer()" id="connect-btn"
+                    class="w-full bg-blue-600 hover:bg-blue-500 font-bold py-3 rounded-lg transition-colors shadow-lg shadow-blue-900/20">
+                    Buscar y Unirse
+                </button>
+            </div>
+
+            <div id="error-msg" class="hidden bg-red-900/20 border border-red-500/50 text-red-400 p-3 rounded-lg text-sm text-center">
+                <!-- Errores aquí -->
+            </div>
+        </div>
+
+        <!-- Pantalla de Juego -->
+        <div id="game-screen" class="hidden p-6 text-center">
+            <div class="flex justify-between items-center mb-6">
+                <div id="player-turn" class="text-lg font-semibold text-blue-400 italic">Esperando movimientos...</div>
+                <div class="text-xs text-slate-500">Tú eres: <span id="my-symbol" class="font-bold">-</span></div>
+            </div>
+
+            <div id="board" class="grid grid-cols-3 gap-2 bg-slate-700 p-2 rounded-xl shadow-inner">
+                <div class="cell rounded-lg" data-index="0" onclick="handleCellClick(0)"></div>
+                <div class="cell rounded-lg" data-index="1" onclick="handleCellClick(1)"></div>
+                <div class="cell rounded-lg" data-index="2" onclick="handleCellClick(2)"></div>
+                <div class="cell rounded-lg" data-index="3" onclick="handleCellClick(3)"></div>
+                <div class="cell rounded-lg" data-index="4" onclick="handleCellClick(4)"></div>
+                <div class="cell rounded-lg" data-index="5" onclick="handleCellClick(5)"></div>
+                <div class="cell rounded-lg" data-index="6" onclick="handleCellClick(6)"></div>
+                <div class="cell rounded-lg" data-index="7" onclick="handleCellClick(7)"></div>
+                <div class="cell rounded-lg" data-index="8" onclick="handleCellClick(8)"></div>
+            </div>
+
+            <button onclick="location.reload()" class="mt-8 text-slate-400 hover:text-white text-sm">
+                Abandonar Partida
+            </button>
+        </div>
+    </div>
+
+    <!-- Sonidos simples opcionales o Feedback visual se maneja por JS -->
+
     <script>
-        const peer = new Peer(); // Crea tu identificador automáticamente
-        let conn;
+        let peer = new Peer(); 
+        let conn = null;
+        let mySymbol = ''; 
+        let currentTurn = 'X';
+        let boardState = Array(9).fill(null);
+        let gameActive = false;
 
-        // Mostrar tu ID cuando PeerJS esté listo
+        const setupScreen = document.getElementById('setup-screen');
+        const gameScreen = document.getElementById('game-screen');
+        const errorMsg = document.getElementById('error-msg');
+        const myIdDisplay = document.getElementById('my-id-display');
+        const statusDot = document.getElementById('status-dot');
+
+        // Al iniciar PeerJS
         peer.on('open', (id) => {
-            document.getElementById('my-id').innerText = id;
+            myIdDisplay.innerText = id;
+            statusDot.className = 'dot-online';
         });
 
-        // Esperar a que alguien se conecte a ti
+        peer.on('error', (err) => {
+            showError("Error de conexión: El ID no existe o hubo un fallo de red.");
+            console.error(err);
+        });
+
+        // Al recibir una conexión entrante (Tú eres el Host / O)
         peer.on('connection', (connection) => {
+            if (conn) return; // Ya estamos en una partida
             conn = connection;
-            setupGame();
+            mySymbol = 'O';
+            setupConnectionListeners();
+            startGame();
         });
 
-        // Función para conectarte tú a otro
+        // Al intentar conectar a alguien (Tú eres el Invitado / X)
         function connectToPeer() {
-            const remoteId = document.getElementById('peer-id').value;
+            const remoteId = document.getElementById('peer-id-input').value.trim();
+            
+            if (!remoteId) {
+                showError("¡Error! Debes pegar el ID de tu amigo primero.");
+                return;
+            }
+
+            if (remoteId === peer.id) {
+                showError("No puedes jugar contra ti mismo.");
+                return;
+            }
+
+            errorMsg.classList.add('hidden');
+            document.getElementById('connect-btn').innerText = "Conectando...";
+            document.getElementById('connect-btn').disabled = true;
+
             conn = peer.connect(remoteId);
-            setupGame();
+            mySymbol = 'X';
+            setupConnectionListeners();
+
+            // Timeout por si el ID no responde
+            setTimeout(() => {
+                if (!gameActive) {
+                    showError("No se pudo conectar. Verifica el ID.");
+                    resetBtn();
+                }
+            }, 5000);
         }
 
-        function setupGame() {
-            document.getElementById('setup').style.display = 'none';
-            document.getElementById('board').style.display = 'grid';
-            
+        function setupConnectionListeners() {
+            conn.on('open', () => {
+                startGame();
+            });
+
             conn.on('data', (data) => {
-                console.log("Recibido movimiento:", data);
-                // Aquí actualizas el tablero con lo que mandó el otro
+                if (data.type === 'move') {
+                    applyMove(data.index, data.symbol);
+                }
+            });
+
+            conn.on('close', () => {
+                alert("El oponente se ha desconectado.");
+                location.reload();
             });
         }
 
-        function makeMove(index) {
-            // Lógica para marcar tu X o O
-            conn.send({ position: index, symbol: 'X' });
+        function startGame() {
+            gameActive = true;
+            setupScreen.classList.add('hidden');
+            gameScreen.classList.remove('hidden');
+            document.getElementById('my-symbol').innerText = mySymbol;
+            document.getElementById('my-symbol').className = mySymbol === 'X' ? 'x-player font-bold' : 'o-player font-bold';
+            updateTurnDisplay();
+        }
+
+        function handleCellClick(index) {
+            if (!gameActive || currentTurn !== mySymbol || boardState[index]) return;
+
+            applyMove(index, mySymbol);
+            conn.send({ type: 'move', index: index, symbol: mySymbol });
+        }
+
+        function applyMove(index, symbol) {
+            boardState[index] = symbol;
+            const cell = document.querySelector(`[data-index="${index}"]`);
+            cell.innerText = symbol;
+            cell.classList.add('occupied');
+            cell.classList.add(symbol === 'X' ? 'x-player' : 'o-player');
+
+            if (checkWinner()) {
+                gameActive = false;
+                document.getElementById('player-turn').innerText = `¡Ganador: ${symbol}!`;
+                setTimeout(() => alert(`¡El jugador ${symbol} ha ganado!`), 100);
+                return;
+            }
+
+            if (boardState.every(s => s !== null)) {
+                gameActive = false;
+                document.getElementById('player-turn').innerText = "¡Empate!";
+                return;
+            }
+
+            currentTurn = currentTurn === 'X' ? 'O' : 'X';
+            updateTurnDisplay();
+        }
+
+        function checkWinner() {
+            const wins = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+            return wins.some(comb => {
+                return comb.every(i => boardState[i] === currentTurn);
+            });
+        }
+
+        function updateTurnDisplay() {
+            const display = document.getElementById('player-turn');
+            if (currentTurn === mySymbol) {
+                display.innerText = "Tu turno";
+                display.classList.add('animate-pulse');
+            } else {
+                display.innerText = "Esperando al oponente...";
+                display.classList.remove('animate-pulse');
+            }
+        }
+
+        function showError(msg) {
+            errorMsg.innerText = msg;
+            errorMsg.classList.remove('hidden');
+            resetBtn();
+        }
+
+        function resetBtn() {
+            const btn = document.getElementById('connect-btn');
+            btn.innerText = "Buscar y Unirse";
+            btn.disabled = false;
+        }
+
+        function copyMyId() {
+            const id = myIdDisplay.innerText;
+            const el = document.createElement('textarea');
+            el.value = id;
+            document.body.appendChild(el);
+            el.select();
+            document.execCommand('copy');
+            document.body.removeChild(el);
+            alert("ID copiado al portapapeles");
         }
     </script>
 </body>
