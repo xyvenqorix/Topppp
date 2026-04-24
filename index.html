@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TicTacP2P - Multijugador Real</title>
+    <title>TicTacP2P - Revancha y IDs Cortos</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -27,6 +27,13 @@
         #status-dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
         .dot-online { background-color: #10b981; box-shadow: 0 0 8px #10b981; }
         .dot-offline { background-color: #ef4444; }
+        
+        /* Animación para el cartel de revancha */
+        .modal-enter { animation: slideUp 0.3s ease-out; }
+        @keyframes slideUp {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
     </style>
 </head>
 <body class="bg-slate-900 text-white min-h-screen flex items-center justify-center p-4 font-sans">
@@ -37,43 +44,43 @@
             <h1 class="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
                 TicTac P2P
             </h1>
-            <p class="text-slate-400 text-sm mt-1">Juego Online sin Base de Datos</p>
+            <p class="text-slate-400 text-sm mt-1 uppercase tracking-tighter font-bold">Modo Revancha Activo</p>
         </div>
 
         <!-- Pantalla de Inicio -->
         <div id="setup-screen" class="p-6 space-y-6">
             <div class="bg-slate-900/50 p-4 rounded-lg border border-slate-700">
-                <label class="text-xs uppercase tracking-wider text-slate-500 font-bold">Tu Identificador (Pásalo a un amigo)</label>
+                <label class="text-xs uppercase tracking-wider text-slate-500 font-bold">Tu ID Fijo (5 dígitos)</label>
                 <div class="flex items-center gap-2 mt-1">
                     <span id="status-dot" class="dot-offline"></span>
-                    <span id="my-id-display" class="font-mono text-blue-400">Generando ID...</span>
-                    <button onclick="copyMyId()" class="ml-auto text-xs bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded">Copiar</button>
+                    <span id="my-id-display" class="font-mono text-2xl text-blue-400 tracking-widest font-bold">.....</span>
+                    <button onclick="copyMyId()" class="ml-auto text-xs bg-slate-700 hover:bg-slate-600 px-3 py-2 rounded-md font-bold transition-all">COPIAR</button>
                 </div>
             </div>
 
             <div class="space-y-3">
-                <label class="text-xs uppercase tracking-wider text-slate-500 font-bold">Conectar con un oponente</label>
-                <input type="text" id="peer-id-input" placeholder="Pega el ID de tu amigo aquí" 
-                    class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all">
+                <label class="text-xs uppercase tracking-wider text-slate-500 font-bold">Conectar con un amigo</label>
+                <input type="text" id="peer-id-input" placeholder="Ingresa el ID de 5 dígitos" maxlength="5"
+                    class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-4 text-center text-2xl font-mono text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all">
                 <button onclick="connectToPeer()" id="connect-btn"
-                    class="w-full bg-blue-600 hover:bg-blue-500 font-bold py-3 rounded-lg transition-colors shadow-lg shadow-blue-900/20">
-                    Buscar y Unirse
+                    class="w-full bg-blue-600 hover:bg-blue-500 font-bold py-4 rounded-lg transition-colors shadow-lg shadow-blue-900/20 text-lg">
+                    BUSCAR OPONENTE
                 </button>
             </div>
 
             <div id="error-msg" class="hidden bg-red-900/20 border border-red-500/50 text-red-400 p-3 rounded-lg text-sm text-center">
-                <!-- Errores aquí -->
+                <!-- Errores -->
             </div>
         </div>
 
         <!-- Pantalla de Juego -->
         <div id="game-screen" class="hidden p-6 text-center">
-            <div class="flex justify-between items-center mb-6">
-                <div id="player-turn" class="text-lg font-semibold text-blue-400 italic">Esperando movimientos...</div>
-                <div class="text-xs text-slate-500">Tú eres: <span id="my-symbol" class="font-bold">-</span></div>
+            <div class="flex justify-between items-center mb-6 bg-slate-900/30 p-3 rounded-lg">
+                <div id="player-turn" class="text-lg font-semibold text-blue-400 italic">Tu turno</div>
+                <div class="text-sm">Eres: <span id="my-symbol" class="font-black text-xl">-</span></div>
             </div>
 
-            <div id="board" class="grid grid-cols-3 gap-2 bg-slate-700 p-2 rounded-xl shadow-inner">
+            <div id="board" class="grid grid-cols-3 gap-2 bg-slate-700 p-2 rounded-xl shadow-inner mb-6">
                 <div class="cell rounded-lg" data-index="0" onclick="handleCellClick(0)"></div>
                 <div class="cell rounded-lg" data-index="1" onclick="handleCellClick(1)"></div>
                 <div class="cell rounded-lg" data-index="2" onclick="handleCellClick(2)"></div>
@@ -85,16 +92,43 @@
                 <div class="cell rounded-lg" data-index="8" onclick="handleCellClick(8)"></div>
             </div>
 
-            <button onclick="location.reload()" class="mt-8 text-slate-400 hover:text-white text-sm">
-                Abandonar Partida
-            </button>
+            <!-- Panel de Control Post-Partida -->
+            <div id="game-controls" class="space-y-3">
+                <div id="rematch-status" class="hidden text-yellow-400 font-bold mb-2 animate-pulse text-sm">Esperando respuesta del rival...</div>
+                
+                <button id="rematch-btn" onclick="requestRematch()" class="hidden w-full bg-green-600 hover:bg-green-500 font-black py-4 rounded-xl transition-all shadow-lg text-white">
+                    ¡SOLICITAR REVANCHA!
+                </button>
+
+                <div id="rematch-choice" class="hidden grid grid-cols-2 gap-2 modal-enter">
+                    <button onclick="acceptRematch()" class="bg-green-600 hover:bg-green-500 font-bold py-4 rounded-xl transition-all">ACEPTAR</button>
+                    <button onclick="rejectRematch()" class="bg-red-600 hover:bg-red-500 font-bold py-4 rounded-xl transition-all">RECHAZAR</button>
+                </div>
+
+                <button onclick="location.reload()" class="w-full bg-slate-700 hover:bg-red-600 font-bold py-4 rounded-xl transition-all text-slate-300 hover:text-white uppercase tracking-widest text-sm">
+                    Abandonar Partida
+                </button>
+            </div>
         </div>
     </div>
 
-    <!-- Sonidos simples opcionales o Feedback visual se maneja por JS -->
-
     <script>
-        let peer = new Peer(); 
+        // Generar o recuperar ID fijo de 5 caracteres
+        function getFixedID() {
+            let id = localStorage.getItem('tictac_p2p_id');
+            if (!id) {
+                const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Evitamos O, 0, I, 1 por confusión
+                id = '';
+                for (let i = 0; i < 5; i++) {
+                    id += chars.charAt(Math.floor(Math.random() * chars.length));
+                }
+                localStorage.setItem('tictac_p2p_id', id);
+            }
+            return id;
+        }
+
+        const myFixedID = getFixedID();
+        let peer = new Peer(myFixedID); 
         let conn = null;
         let mySymbol = ''; 
         let currentTurn = 'X';
@@ -106,71 +140,77 @@
         const errorMsg = document.getElementById('error-msg');
         const myIdDisplay = document.getElementById('my-id-display');
         const statusDot = document.getElementById('status-dot');
+        const rematchBtn = document.getElementById('rematch-btn');
+        const rematchChoice = document.getElementById('rematch-choice');
+        const rematchStatus = document.getElementById('rematch-status');
 
-        // Al iniciar PeerJS
         peer.on('open', (id) => {
             myIdDisplay.innerText = id;
             statusDot.className = 'dot-online';
         });
 
         peer.on('error', (err) => {
-            showError("Error de conexión: El ID no existe o hubo un fallo de red.");
-            console.error(err);
+            if(err.type === 'unavailable-id') {
+                showError("Este ID ya está en uso en otra pestaña.");
+            } else {
+                showError("Error: No se pudo encontrar al oponente.");
+            }
+            resetBtn();
         });
 
-        // Al recibir una conexión entrante (Tú eres el Host / O)
         peer.on('connection', (connection) => {
-            if (conn) return; // Ya estamos en una partida
+            if (conn) return; 
             conn = connection;
             mySymbol = 'O';
             setupConnectionListeners();
             startGame();
         });
 
-        // Al intentar conectar a alguien (Tú eres el Invitado / X)
         function connectToPeer() {
-            const remoteId = document.getElementById('peer-id-input').value.trim();
-            
-            if (!remoteId) {
-                showError("¡Error! Debes pegar el ID de tu amigo primero.");
+            const remoteId = document.getElementById('peer-id-input').value.trim().toUpperCase();
+            if (!remoteId || remoteId.length < 5) {
+                showError("Introduce un ID válido de 5 dígitos.");
                 return;
             }
-
-            if (remoteId === peer.id) {
-                showError("No puedes jugar contra ti mismo.");
+            if (remoteId === myFixedID) {
+                showError("No puedes retarte a ti mismo.");
                 return;
             }
 
             errorMsg.classList.add('hidden');
-            document.getElementById('connect-btn').innerText = "Conectando...";
+            document.getElementById('connect-btn').innerText = "CONECTANDO...";
             document.getElementById('connect-btn').disabled = true;
 
             conn = peer.connect(remoteId);
             mySymbol = 'X';
             setupConnectionListeners();
 
-            // Timeout por si el ID no responde
             setTimeout(() => {
                 if (!gameActive) {
-                    showError("No se pudo conectar. Verifica el ID.");
+                    showError("Oponente no encontrado o desconectado.");
                     resetBtn();
                 }
-            }, 5000);
+            }, 6000);
         }
 
         function setupConnectionListeners() {
-            conn.on('open', () => {
-                startGame();
-            });
+            conn.on('open', () => startGame());
 
             conn.on('data', (data) => {
                 if (data.type === 'move') {
                     applyMove(data.index, data.symbol);
+                } else if (data.type === 'rematch_request') {
+                    showRematchChoice();
+                } else if (data.type === 'rematch_accept') {
+                    resetBoard();
+                } else if (data.type === 'rematch_reject') {
+                    alert("El oponente rechazó la revancha.");
+                    location.reload();
                 }
             });
 
             conn.on('close', () => {
-                alert("El oponente se ha desconectado.");
+                alert("El oponente se ha ido.");
                 location.reload();
             });
         }
@@ -180,13 +220,12 @@
             setupScreen.classList.add('hidden');
             gameScreen.classList.remove('hidden');
             document.getElementById('my-symbol').innerText = mySymbol;
-            document.getElementById('my-symbol').className = mySymbol === 'X' ? 'x-player font-bold' : 'o-player font-bold';
+            document.getElementById('my-symbol').className = mySymbol === 'X' ? 'x-player font-black text-2xl' : 'o-player font-black text-2xl';
             updateTurnDisplay();
         }
 
         function handleCellClick(index) {
             if (!gameActive || currentTurn !== mySymbol || boardState[index]) return;
-
             applyMove(index, mySymbol);
             conn.send({ type: 'move', index: index, symbol: mySymbol });
         }
@@ -199,15 +238,12 @@
             cell.classList.add(symbol === 'X' ? 'x-player' : 'o-player');
 
             if (checkWinner()) {
-                gameActive = false;
-                document.getElementById('player-turn').innerText = `¡Ganador: ${symbol}!`;
-                setTimeout(() => alert(`¡El jugador ${symbol} ha ganado!`), 100);
+                endGame(`¡GANÓ ${symbol}!`);
                 return;
             }
 
             if (boardState.every(s => s !== null)) {
-                gameActive = false;
-                document.getElementById('player-turn').innerText = "¡Empate!";
+                endGame("¡EMPATE!");
                 return;
             }
 
@@ -215,45 +251,89 @@
             updateTurnDisplay();
         }
 
+        function endGame(msg) {
+            gameActive = false;
+            document.getElementById('player-turn').innerText = msg;
+            document.getElementById('player-turn').classList.add('text-green-400', 'text-2xl', 'not-italic');
+            rematchBtn.classList.remove('hidden');
+        }
+
+        // --- LÓGICA DE REVANCHA ---
+
+        function requestRematch() {
+            rematchBtn.classList.add('hidden');
+            rematchStatus.classList.remove('hidden');
+            rematchStatus.innerText = "Esperando que el rival acepte...";
+            conn.send({ type: 'rematch_request' });
+        }
+
+        function showRematchChoice() {
+            rematchBtn.classList.add('hidden');
+            rematchChoice.classList.remove('hidden');
+            document.getElementById('player-turn').innerText = "¿Aceptas Revancha?";
+        }
+
+        function acceptRematch() {
+            conn.send({ type: 'rematch_accept' });
+            resetBoard();
+        }
+
+        function rejectRematch() {
+            conn.send({ type: 'rematch_reject' });
+            location.reload();
+        }
+
+        function resetBoard() {
+            boardState = Array(9).fill(null);
+            currentTurn = 'X';
+            gameActive = true;
+            
+            // Limpiar UI
+            document.querySelectorAll('.cell').forEach(c => {
+                c.innerText = '';
+                c.className = 'cell rounded-lg';
+            });
+            
+            rematchBtn.classList.add('hidden');
+            rematchChoice.classList.add('hidden');
+            rematchStatus.classList.add('hidden');
+            document.getElementById('player-turn').classList.remove('text-green-400', 'text-2xl', 'not-italic');
+            
+            updateTurnDisplay();
+        }
+
+        // --- UTILIDADES ---
+
         function checkWinner() {
             const wins = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
-            return wins.some(comb => {
-                return comb.every(i => boardState[i] === currentTurn);
-            });
+            return wins.some(comb => comb.every(i => boardState[i] === currentTurn));
         }
 
         function updateTurnDisplay() {
             const display = document.getElementById('player-turn');
             if (currentTurn === mySymbol) {
                 display.innerText = "Tu turno";
-                display.classList.add('animate-pulse');
+                display.classList.add('animate-pulse', 'text-blue-400');
             } else {
-                display.innerText = "Esperando al oponente...";
-                display.classList.remove('animate-pulse');
+                display.innerText = "Turno del oponente...";
+                display.classList.remove('animate-pulse', 'text-blue-400');
             }
         }
 
         function showError(msg) {
             errorMsg.innerText = msg;
             errorMsg.classList.remove('hidden');
-            resetBtn();
         }
 
         function resetBtn() {
             const btn = document.getElementById('connect-btn');
-            btn.innerText = "Buscar y Unirse";
+            btn.innerText = "BUSCAR OPONENTE";
             btn.disabled = false;
         }
 
         function copyMyId() {
             const id = myIdDisplay.innerText;
-            const el = document.createElement('textarea');
-            el.value = id;
-            document.body.appendChild(el);
-            el.select();
-            document.execCommand('copy');
-            document.body.removeChild(el);
-            alert("ID copiado al portapapeles");
+            navigator.clipboard.writeText(id).then(() => alert("¡ID Copiado! Envíalo a tu amigo."));
         }
     </script>
 </body>
